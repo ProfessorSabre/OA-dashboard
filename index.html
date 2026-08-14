@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purdue LA — Outcomes &amp; Assessment Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#EEF1EC;
+    --paper-raised:#F8F9F6;
+    --ink:#1E2A24;
+    --ink-soft:#4B5850;
+    --line:#D3D9D0;
+    --knowledge:#35604A;
+    --knowledge-soft:#B9CDBE;
+    --skill:#8A5A34;
+    --skill-soft:#DDC7AF;
+    --mission:#5B6670;
+    --gold:#C99A3E;
+    --gold-soft:#F0E3C4;
+    --danger:#A4402C;
+    --radius:3px;
+    --serif:'Fraunces', Georgia, 'Iowan Old Style', serif;
+    --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--knowledge);}
+
+  /* ---------- header ---------- */
+  header{
+    position:relative;
+    background:linear-gradient(180deg,#1E2A24 0%,#26362E 100%);
+    color:#EEF1EC;
+    padding:38px 40px 30px;
+    overflow:hidden;
+  }
+  header::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      repeating-radial-gradient(circle at 15% 30%, transparent 0, transparent 26px, rgba(238,241,236,0.045) 27px, transparent 28px),
+      repeating-radial-gradient(circle at 85% 75%, transparent 0, transparent 34px, rgba(238,241,236,0.04) 35px, transparent 36px),
+      repeating-radial-gradient(circle at 50% 0%, transparent 0, transparent 40px, rgba(238,241,236,0.035) 41px, transparent 42px);
+    pointer-events:none;
+  }
+  .eyebrow{
+    position:relative;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--gold-soft);
+    margin-bottom:10px;
+  }
+  h1{
+    position:relative;
+    font-family:var(--serif);
+    font-weight:500;
+    font-size:clamp(26px,3.4vw,38px);
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    position:relative;
+    margin:0;
+    max-width:640px;
+    color:#C7D0C9;
+    font-size:14px;
+  }
+  .header-stats{
+    position:relative;
+    display:flex;
+    gap:28px;
+    margin-top:22px;
+    flex-wrap:wrap;
+  }
+  .header-stat .num{font-family:var(--mono); font-size:20px; font-weight:600; color:#F8F9F6;}
+  .header-stat .lbl{font-size:11px; color:#9BAAA0; text-transform:uppercase; letter-spacing:.06em;}
+
+  /* ---------- filter bar ---------- */
+  .filterbar{
+    position:sticky; top:0; z-index:20;
+    background:var(--paper-raised);
+    border-bottom:1px solid var(--line);
+    padding:14px 40px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:22px;
+    align-items:flex-start;
+  }
+  .filter-group{display:flex; flex-direction:column; gap:6px;}
+  .filter-group .fg-label{
+    font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .chiprow{display:flex; flex-wrap:wrap; gap:6px; max-width:520px;}
+  .chip{
+    font-family:var(--sans); font-size:12.5px; font-weight:500;
+    padding:5px 10px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:#fff;
+    cursor:pointer;
+    color:var(--ink-soft);
+    transition:all .12s ease;
+    user-select:none;
+    white-space:nowrap;
+  }
+  .chip:hover{border-color:var(--ink-soft);}
+  .chip.active{
+    background:var(--ink); color:#fff; border-color:var(--ink);
+  }
+  .chip.active.k{background:var(--knowledge); border-color:var(--knowledge);}
+  .chip.active.s{background:var(--skill); border-color:var(--skill);}
+  .miniBtn{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-soft); background:none; border:none; cursor:pointer; text-decoration:underline;
+    padding:0; margin-left:4px;
+  }
+  .toggle-group{display:flex; border:1px solid var(--line); border-radius:14px; overflow:hidden;}
+  .toggle-group button{
+    font-family:var(--sans); font-size:12.5px; font-weight:500;
+    padding:5px 12px; border:none; background:#fff; cursor:pointer; color:var(--ink-soft);
+  }
+  .toggle-group button.active{background:var(--ink); color:#fff;}
+  .toggle-group button + button{border-left:1px solid var(--line);}
+
+  /* ---------- layout ---------- */
+  main{padding:28px 40px 60px; max-width:1400px; margin:0 auto;}
+  .panel{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px 22px;
+    margin-bottom:22px;
+  }
+  .panel h2{
+    font-family:var(--serif); font-weight:500; font-size:17px; margin:0 0 4px;
+  }
+  .panel .sub{font-size:12px; color:var(--ink-soft); margin:0 0 16px;}
+  .chart-row{display:grid; grid-template-columns:1.4fr 1fr; gap:20px;}
+  .chart-box{position:relative; height:320px;}
+  @media (max-width:980px){ .chart-row{grid-template-columns:1fr;} }
+
+  /* ---------- table ---------- */
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  thead th{
+    position:sticky; top:0;
+    background:var(--paper-raised);
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-soft); font-weight:600;
+    text-align:right; padding:8px 10px; border-bottom:2px solid var(--ink);
+    cursor:pointer; white-space:nowrap;
+  }
+  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  thead th.sorted{color:var(--ink);}
+  tbody td{padding:6px 10px; border-bottom:1px solid var(--line); text-align:right; font-family:var(--mono);}
+  tbody td:first-child, tbody td:nth-child(2){text-align:left; font-family:var(--sans);}
+  tbody tr:hover{background:#fff;}
+  tbody tr.benchmark-row{background:var(--gold-soft); font-style:italic;}
+  .table-wrap{max-height:480px; overflow:auto; border:1px solid var(--line); border-radius:var(--radius);}
+  .cell-k{color:var(--knowledge);}
+  .cell-s{color:var(--skill);}
+
+  /* ---------- item drilldown ---------- */
+  .drilldown-controls{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; align-items:center;}
+  select{
+    font-family:var(--sans); font-size:13px; padding:6px 10px; border:1px solid var(--line);
+    border-radius:var(--radius); background:#fff; color:var(--ink);
+  }
+  .item-bar-wrap{max-height:520px; overflow-y:auto;}
+
+  /* ---------- star charts ---------- */
+  .star-controls{display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;}
+  .star-mode-toggle{display:flex; border:1px solid var(--line); border-radius:14px; overflow:hidden;}
+  .star-mode-toggle button{font-family:var(--sans); font-size:12.5px; font-weight:500; padding:6px 14px; border:none; background:#fff; cursor:pointer; color:var(--ink-soft);}
+  .star-mode-toggle button.active{background:var(--gold); color:#fff;}
+  .star-mode-toggle button + button{border-left:1px solid var(--line);}
+  .star-row{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+  .star-box{position:relative; height:440px;}
+  .star-box .panel-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); text-align:center; margin-bottom:4px;}
+  @media (max-width:980px){ .star-row{grid-template-columns:1fr;} }
+  .item-bar-row{display:grid; grid-template-columns:280px 1fr 50px; gap:10px; align-items:center; padding:5px 0;}
+  .item-bar-label{font-size:11.5px; color:var(--ink-soft); line-height:1.3;}
+  .item-bar-track{background:#E4E8E1; border-radius:2px; height:14px; position:relative;}
+  .item-bar-fill{height:100%; border-radius:2px;}
+  .item-bar-val{font-family:var(--mono); font-size:11.5px; text-align:right;}
+  .proposed-tag{
+    display:inline-block; font-family:var(--mono); font-size:9px; text-transform:uppercase;
+    background:var(--gold-soft); color:#7A5B14; padding:1px 5px; border-radius:8px; margin-left:6px;
+  }
+
+  /* ---------- report panel ---------- */
+  .report-actions{display:flex; gap:10px; margin-bottom:14px;}
+  button.action{
+    font-family:var(--sans); font-size:12.5px; font-weight:600;
+    padding:8px 14px; border-radius:var(--radius); border:1px solid var(--ink); background:var(--ink); color:#fff;
+    cursor:pointer;
+  }
+  button.action.secondary{background:#fff; color:var(--ink);}
+  button.action:hover{opacity:.85;}
+  #reportText{
+    font-family:var(--mono); font-size:12px; white-space:pre-wrap; line-height:1.6;
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:16px;
+  }
+  #reportText b{color:var(--ink); font-weight:600;}
+
+  footer{
+    padding:24px 40px 40px; font-size:11.5px; color:var(--ink-soft);
+    border-top:1px solid var(--line); font-family:var(--mono);
+  }
+  .empty-note{color:var(--ink-soft); font-size:13px; padding:20px 0; text-align:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Purdue Landscape Architecture · Outcomes &amp; Assessment</div>
+  <h1>Curriculum Perception Survey Dashboard</h1>
+  <p>Grand means by category, year, and cohort, drawn directly from Category Means in Master OA Survey v2. Select years and cohorts below to filter every chart, table, and report on this page.</p>
+  <div class="header-stats">
+    <div class="header-stat"><div class="num" id="statYears">–</div><div class="lbl">Survey years</div></div>
+    <div class="header-stat"><div class="num" id="statCohorts">–</div><div class="lbl">Cohorts tracked</div></div>
+    <div class="header-stat"><div class="num" id="statN">–</div><div class="lbl">Respondents, selected</div></div>
+    <div class="header-stat"><div class="num" id="statItems">155</div><div class="lbl">Items in instrument</div></div>
+  </div>
+</header>
+
+<div class="filterbar">
+  <div class="filter-group">
+    <div class="fg-label">Survey Years <button class="miniBtn" id="yearsAll">all</button><button class="miniBtn" id="yearsNone">none</button></div>
+    <div class="chiprow" id="yearChips"></div>
+  </div>
+  <div class="filter-group">
+    <div class="fg-label">Cohorts <button class="miniBtn" id="cohortsAll">all</button><button class="miniBtn" id="cohortsNone">none</button></div>
+    <div class="chiprow" id="cohortChips"></div>
+  </div>
+  <div class="filter-group">
+    <div class="fg-label">Category Type</div>
+    <div class="toggle-group" id="typeToggle">
+      <button data-type="Knowledge" class="active">Knowledge</button>
+      <button data-type="Skill">Skill</button>
+      <button data-type="Both">Both</button>
+    </div>
+  </div>
+  <div class="filter-group" style="flex:1; min-width:260px;">
+    <div class="fg-label">Categories <button class="miniBtn" id="catsAll">all</button><button class="miniBtn" id="catsNone">none</button></div>
+    <div class="chiprow" id="catChips"></div>
+  </div>
+</div>
+
+<main>
+
+  <div class="panel">
+    <h2>Trend across years</h2>
+    <p class="sub">Each line is the mean of the selected cohorts' category grand mean for that year. Solid lines are Knowledge categories, dashed lines are Skill categories.</p>
+    <div class="chart-row">
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+      <div class="chart-box">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+          <span class="fg-label" style="margin:0;">Focus year</span>
+          <select id="focusYear"></select>
+        </div>
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Star charts — comparison against LABOK</h2>
+    <p class="sub">Reproduces the radar chart format from Figure 6 in the 2024 Landscape Journal paper. Two modes: compare every cohort within a single year, or track one cohort across every year. LABOK-at-graduation is always plotted as the red dotted reference.</p>
+    <div class="star-controls">
+      <div class="filter-group">
+        <div class="fg-label">Mode</div>
+        <div class="star-mode-toggle" id="starModeToggle">
+          <button data-mode="cohorts" class="active">Cohorts, one year</button>
+          <button data-mode="years">One cohort, all years</button>
+        </div>
+      </div>
+      <div class="filter-group" id="starYearPickWrap">
+        <div class="fg-label">Year</div>
+        <select id="starYear"></select>
+      </div>
+      <div class="filter-group" id="starCohortPickWrap" style="display:none;">
+        <div class="fg-label">Cohort</div>
+        <select id="starCohort"></select>
+      </div>
+      <div class="filter-group" id="starSeriesWrap">
+        <div class="fg-label">Series shown <button class="miniBtn" id="starSeriesAll">all</button><button class="miniBtn" id="starSeriesNone">none</button></div>
+        <div class="chiprow" id="starSeriesChips" style="max-width:640px;"></div>
+      </div>
+    </div>
+    <div class="star-row">
+      <div class="star-box"><div class="panel-label" id="starKnowLabel">Knowledge and Understanding</div><canvas id="starKnowChart"></canvas></div>
+      <div class="star-box"><div class="panel-label" id="starSkillLabel">Skill Competencies</div><canvas id="starSkillChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Grand means table</h2>
+    <p class="sub">Filtered to the years, cohorts, and categories selected above. Click a column header to sort. This mirrors the Averages tab in the workbook.</p>
+    <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+      <input type="checkbox" id="showBenchmarks"> Show LABOK-at-graduation and pre-2017 faculty benchmark rows (Knowledge categories only)
+    </label>
+    <div class="table-wrap"><table id="dataTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>Item-level detail</h2>
+    <p class="sub">Which items within a category are driving its grand mean, for one year and cohort at a time.</p>
+    <div class="drilldown-controls">
+      <div><span class="fg-label">Category</span><br><select id="drillCategory"></select></div>
+      <div><span class="fg-label">Year</span><br><select id="drillYear"></select></div>
+      <div><span class="fg-label">Cohort</span><br><select id="drillCohort"></select></div>
+    </div>
+    <div class="item-bar-wrap" id="itemBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Report</h2>
+    <p class="sub">Plain-text summary of the current filter selection, generated live.</p>
+    <div class="report-actions">
+      <button class="action" id="copyReport">Copy report text</button>
+      <button class="action secondary" id="downloadCsv">Download filtered table as CSV</button>
+    </div>
+    <div id="reportText"></div>
+  </div>
+
+</main>
+
+<footer>
+  Source: Master OA Survey v2.xlsx, Category Means and Responses (Long) tabs · Generated by this dashboard from the workbook data · No response data is sent anywhere — everything runs in this file, in your browser.
+</footer>
+
+<script>
+let DATA = null;
+
+const state = {
+  years: new Set(),
+  cohorts: new Set(['Freshman','Sophomore','Junior','Co-op','Senior']),
+  type: 'Knowledge',
+  cats: new Set(),
+  sortCol: null,
+  sortDir: 1,
+};
+function initState(){
+  state.years = new Set(DATA.years);
+  state.cats = new Set(DATA.knowCats);
+}
+
+const COHORT_COLORS = {
+  'Freshman':'#35604A','Sophomore':'#4C7A5E','Junior':'#6C9678','Co-op':'#8A5A34',
+  'Senior':'#A97A50','Professional practice 1-3 years':'#C99A3E','Professional practice 3-8 years':'#B98330',
+  'Professional practice 8-15 years':'#A66C24','Professional practice 15+ years':'#8F5518','Faculty':'#5B6670'
+};
+const CAT_PALETTE = ['#35604A','#8A5A34','#C99A3E','#5B6670','#6C9678','#A97A50','#7C8FA6','#B4574A','#4C7A5E','#9C7C43'];
+
+function catKey(type, cat){ return type + '::' + cat; }
+function activeCatsForType(){
+  return Array.from(state.cats).filter(c => currentTypeCats().includes(c));
+}
+function currentTypeCats(){
+  if(state.type==='Knowledge') return DATA.knowCats;
+  if(state.type==='Skill') return DATA.skillCats;
+  return DATA.knowCats.concat(DATA.skillCats);
+}
+
+// ---------------- filter bar build ----------------
+function buildChips(containerId, items, activeSet, cls){
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  items.forEach(item=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (activeSet.has(item) ? ' active'+(cls?(' '+cls):'') : '');
+    chip.textContent = item;
+    chip.onclick = ()=>{
+      if(activeSet.has(item)) activeSet.delete(item); else activeSet.add(item);
+      render();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function buildCatChips(){
+  const cats = currentTypeCats();
+  const el = document.getElementById('catChips');
+  el.innerHTML = '';
+  const uniqueCats = [...new Set(cats)];
+  uniqueCats.forEach(cat=>{
+    const isK = DATA.knowCats.includes(cat);
+    const chip = document.createElement('div');
+    const active = state.cats.has(cat);
+    chip.className = 'chip' + (active ? ' active '+(isK?'k':'s') : '');
+    chip.textContent = cat.length>34 ? cat.slice(0,32)+'…' : cat;
+    chip.title = cat;
+    chip.onclick = ()=>{
+      if(state.cats.has(cat)) state.cats.delete(cat); else state.cats.add(cat);
+      render();
+    };
+    el.appendChild(chip);
+  });
+}
+
+document.getElementById('yearsAll').onclick = ()=>{ state.years = new Set(DATA.years); render(); };
+document.getElementById('yearsNone').onclick = ()=>{ state.years = new Set(); render(); };
+document.getElementById('cohortsAll').onclick = ()=>{ state.cohorts = new Set(DATA.cohorts); render(); };
+document.getElementById('cohortsNone').onclick = ()=>{ state.cohorts = new Set(); render(); };
+document.getElementById('catsAll').onclick = ()=>{ currentTypeCats().forEach(c=>state.cats.add(c)); render(); };
+document.getElementById('catsNone').onclick = ()=>{ currentTypeCats().forEach(c=>state.cats.delete(c)); render(); };
+
+document.querySelectorAll('#typeToggle button').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('#typeToggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.type = btn.dataset.type;
+    state.cats = new Set(currentTypeCats());
+    render();
+  };
+});
+document.getElementById('showBenchmarks').onchange = render;
+
+// ---------------- data helpers ----------------
+function filteredRows(){
+  return DATA.categoryMeans.filter(r => state.years.has(r.year) && state.cohorts.has(r.cohort));
+}
+
+function meanByYearCategory(){
+  // avg across selected cohorts, per year, per selected category (regardless of type filter, for trend chart use activeCatsForType)
+  const cats = Array.from(state.cats);
+  const out = {};
+  cats.forEach(catKeyName=>out[catKeyName]={});
+  DATA.years.forEach(y=>{
+    const rows = DATA.categoryMeans.filter(r=>r.year===y && state.cohorts.has(r.cohort));
+    cats.forEach(cat=>{
+      const type = DATA.knowCats.includes(cat) && state.type!=='Skill' ? 'Knowledge' : 'Skill';
+      let vals=[];
+      rows.forEach(r=>{
+        // a category may exist in both Knowledge and Skill; use whichever this chip actually represents
+        const kk = catKey('Knowledge', cat);
+        const sk = catKey('Skill', cat);
+        if(DATA.knowCats.includes(cat) && r.vals[kk]!==undefined && (state.type==='Knowledge' || state.type==='Both')) vals.push(['K',r.vals[kk]]);
+        if(DATA.skillCats.includes(cat) && r.vals[sk]!==undefined && (state.type==='Skill' || state.type==='Both')) vals.push(['S',r.vals[sk]]);
+      });
+      out[cat][y] = vals;
+    });
+  });
+  return out;
+}
+
+// ---------------- charts ----------------
+let trendChart, barChart;
+function renderTrendChart(){
+  const ctx = document.getElementById('trendChart');
+  const years = DATA.years.filter(y=>state.years.has(y));
+  const cats = Array.from(state.cats);
+  const datasets = [];
+  let ci=0;
+  cats.forEach(cat=>{
+    const color = CAT_PALETTE[ci % CAT_PALETTE.length]; ci++;
+    ['Knowledge','Skill'].forEach(typ=>{
+      if(typ==='Knowledge' && !DATA.knowCats.includes(cat)) return;
+      if(typ==='Skill' && !DATA.skillCats.includes(cat)) return;
+      if(state.type!=='Both' && state.type!==typ) return;
+      const key = catKey(typ,cat);
+      const data = years.map(y=>{
+        const rows = DATA.categoryMeans.filter(r=>r.year===y && state.cohorts.has(r.cohort) && r.vals[key]!==undefined);
+        if(!rows.length) return null;
+        return rows.reduce((a,r)=>a+r.vals[key],0)/rows.length;
+      });
+      datasets.push({
+        label: cat + (typ==='Skill' ? ' (skill)' : (state.type==='Both'?' (knowledge)':'')),
+        data, borderColor:color, backgroundColor:color,
+        borderDash: typ==='Skill' ? [5,3] : [],
+        tension:0.25, pointRadius:3, spanGaps:true,
+      });
+    });
+  });
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels:years, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{min:1,max:5, ticks:{font:{family:'IBM Plex Mono',size:10}}}, x:{ticks:{font:{family:'IBM Plex Mono',size:10}}} },
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{size:10.5}}} }
+    }
+  });
+}
+
+function renderBarChart(){
+  const ctx = document.getElementById('barChart');
+  const focusYear = document.getElementById('focusYear').value;
+  const cats = Array.from(state.cats);
+  const cohorts = Array.from(state.cohorts);
+  const datasets = cohorts.map(coh=>{
+    const row = DATA.categoryMeans.find(r=>r.year===focusYear && r.cohort===coh);
+    const data = cats.map(cat=>{
+      const typ = (state.type==='Skill') ? 'Skill' : 'Knowledge';
+      const key = catKey(typ, cat);
+      return row && row.vals[key]!==undefined ? row.vals[key] : null;
+    });
+    return { label: coh, data, backgroundColor: COHORT_COLORS[coh] || '#999' };
+  });
+  if(barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type:'bar',
+    data:{ labels:cats.map(c=>c.length>18?c.slice(0,16)+'…':c), datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{min:0,max:5, ticks:{font:{family:'IBM Plex Mono',size:10}}}, x:{ticks:{font:{size:9}}} },
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{size:9.5}}} }
+    }
+  });
+}
+
+function populateFocusYear(){
+  const sel = document.getElementById('focusYear');
+  const years = DATA.years.filter(y=>state.years.has(y));
+  const prev = sel.value;
+  sel.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.includes(prev)) sel.value = prev; else sel.value = years[years.length-1];
+}
+document.getElementById('focusYear').addEventListener('change', renderBarChart);
+
+// ---------------- star charts ----------------
+const CLASS_COHORTS = ['Freshman','Sophomore','Junior','Co-op','Senior'];
+const COHORT_RAMP = { 'Freshman':'#A9BEDC', 'Sophomore':'#6E90C4', 'Junior':'#2C4E7C', 'Co-op':'#132038', 'Senior':'#E2872B' };
+const YEAR_RAMP_BASE = [222,236,246]; // light blue -> interpolated darker per index
+function yearColor(i, n){
+  // chronological ramp, light (early) to dark navy (recent)
+  const t = n<=1 ? 1 : i/(n-1);
+  const light = [201,217,236], dark = [16,36,64];
+  const rgb = light.map((c,idx)=>Math.round(c + (dark[idx]-c)*t));
+  return `rgb(${rgb.join(',')})`;
+}
+
+const starState = { mode:'cohorts', year:null, cohort:null, series:new Set() };
+
+function benchVal(type, catList, cat){
+  const b = DATA.benchmarks.find(x=>x.type===type && x.label==='LABOK at Graduation');
+  if(!b) return null;
+  const idx = DATA.knowCats.indexOf(cat);
+  const v = b.vals[idx];
+  return typeof v==='number' ? v : null;
+}
+
+function initStarControls(){
+  const yearSel = document.getElementById('starYear');
+  yearSel.innerHTML = DATA.years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  yearSel.value = DATA.years[DATA.years.length-1];
+  starState.year = yearSel.value;
+
+  const cohSel = document.getElementById('starCohort');
+  cohSel.innerHTML = DATA.cohorts.map(c=>`<option value="${c}">${c}</option>`).join('');
+  cohSel.value = 'Senior';
+  starState.cohort = cohSel.value;
+
+  yearSel.addEventListener('change', ()=>{ starState.year = yearSel.value; syncStarSeriesDefaults(); renderStarCharts(); });
+  cohSel.addEventListener('change', ()=>{ starState.cohort = cohSel.value; syncStarSeriesDefaults(); renderStarCharts(); });
+
+  document.querySelectorAll('#starModeToggle button').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('#starModeToggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      starState.mode = btn.dataset.mode;
+      document.getElementById('starYearPickWrap').style.display = starState.mode==='cohorts' ? '' : 'none';
+      document.getElementById('starCohortPickWrap').style.display = starState.mode==='years' ? '' : 'none';
+      syncStarSeriesDefaults();
+      renderStarCharts();
+    };
+  });
+
+  document.getElementById('starSeriesAll').onclick = ()=>{
+    starSeriesOptions().forEach(s=>starState.series.add(s));
+    renderStarCharts();
+  };
+  document.getElementById('starSeriesNone').onclick = ()=>{
+    starState.series.clear();
+    renderStarCharts();
+  };
+
+  syncStarSeriesDefaults();
+}
+
+function starSeriesOptions(){
+  return starState.mode==='cohorts' ? CLASS_COHORTS.concat(['Faculty']) : DATA.years.slice();
+}
+function syncStarSeriesDefaults(){
+  starState.series = new Set(starSeriesOptions());
+}
+
+function renderStarSeriesChips(){
+  const opts = starSeriesOptions();
+  buildChips('starSeriesChips', opts, starState.series);
+  // override the click handler set by buildChips so it targets starState + re-renders star charts only
+  document.querySelectorAll('#starSeriesChips .chip').forEach((chip,i)=>{
+    chip.onclick = ()=>{
+      const item = opts[i];
+      if(starState.series.has(item)) starState.series.delete(item); else starState.series.add(item);
+      renderStarCharts();
+    };
+  });
+}
+
+let starKnowChart, starSkillChart;
+function buildStarDatasets(type, catList){
+  const datasets = [];
+  if(starState.mode==='cohorts'){
+    const row0 = DATA.categoryMeans.filter(r=>r.year===starState.year);
+    CLASS_COHORTS.concat(['Faculty']).forEach(coh=>{
+      if(!starState.series.has(coh)) return;
+      const row = row0.find(r=>r.cohort===coh);
+      if(!row) return;
+      const data = catList.map(cat=>{
+        const v = row.vals[catKey(type,cat)];
+        return typeof v==='number' ? v : null;
+      });
+      const isFaculty = coh==='Faculty';
+      datasets.push({
+        label: coh, data,
+        borderColor: isFaculty ? '#4B7B4E' : (COHORT_RAMP[coh]||'#888'),
+        backgroundColor:'transparent',
+        borderDash: isFaculty ? [6,4] : [],
+        pointRadius:2, borderWidth: isFaculty?2:2.4,
+      });
+    });
+  } else {
+    DATA.years.forEach((y,i)=>{
+      if(!starState.series.has(y)) return;
+      const row = DATA.categoryMeans.find(r=>r.year===y && r.cohort===starState.cohort);
+      if(!row) return;
+      const data = catList.map(cat=>{
+        const v = row.vals[catKey(type,cat)];
+        return typeof v==='number' ? v : null;
+      });
+      datasets.push({
+        label:y, data,
+        borderColor: yearColor(DATA.years.indexOf(y), DATA.years.length),
+        backgroundColor:'transparent',
+        pointRadius:2, borderWidth:2.2,
+      });
+    });
+  }
+  // LABOK reference, always on
+  const labok = catList.map(cat=>benchVal(type, catList, cat));
+  if(labok.some(v=>v!==null)){
+    datasets.push({
+      label:'LABOK', data:labok,
+      borderColor:'#B23A2E', backgroundColor:'transparent',
+      borderDash:[2,3], pointRadius:1.5, borderWidth:2,
+    });
+  }
+  return datasets;
+}
+
+function renderStarChart(canvasId, type, catList, existing){
+  const ctx = document.getElementById(canvasId);
+  const datasets = buildStarDatasets(type, catList);
+  const labels = catList.map(c=>c.length>26 ? c.replace(/ and /g,' & ').match(/.{1,22}(\s|$)/g).map(s=>s.trim()) : c);
+  if(existing) existing.destroy();
+  return new Chart(ctx, {
+    type:'radar',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ r:{ min:0, max:5, ticks:{stepSize:1, font:{family:'IBM Plex Mono',size:9}}, pointLabels:{font:{size:9.5}}, grid:{color:'#D3D9D0'} } },
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{size:9.5}}} },
+      elements:{ line:{ tension:0 } }
+    }
+  });
+}
+
+function renderStarCharts(){
+  renderStarSeriesChips();
+  document.getElementById('starKnowLabel').textContent =
+    starState.mode==='cohorts' ? `${starState.year} — Knowledge and Understanding` : `${starState.cohort} — Knowledge and Understanding`;
+  document.getElementById('starSkillLabel').textContent =
+    starState.mode==='cohorts' ? `${starState.year} — Skill Competencies` : `${starState.cohort} — Skill Competencies`;
+  starKnowChart = renderStarChart('starKnowChart', 'Knowledge', DATA.knowCats, starKnowChart);
+  starSkillChart = renderStarChart('starSkillChart', 'Skill', DATA.skillCats, starSkillChart);
+}
+
+// ---------------- table ----------------
+function renderTable(){
+  const cats = Array.from(state.cats);
+  const thead = document.querySelector('#dataTable thead');
+  const tbody = document.querySelector('#dataTable tbody');
+  let cols = [];
+  cats.forEach(cat=>{
+    if((state.type==='Knowledge'||state.type==='Both') && DATA.knowCats.includes(cat)) cols.push({cat, typ:'Knowledge'});
+    if((state.type==='Skill'||state.type==='Both') && DATA.skillCats.includes(cat)) cols.push({cat, typ:'Skill'});
+  });
+  thead.innerHTML = '<tr>' +
+    '<th data-k="year">Year</th><th data-k="cohort">Cohort</th><th data-k="n">n</th>' +
+    cols.map(c=>`<th data-k="${catKey(c.typ,c.cat)}">${c.cat.length>22?c.cat.slice(0,20)+'…':c.cat}${c.typ==='Skill'?' (S)':(state.type==='Both'?' (K)':'')}</th>`).join('') +
+    '</tr>';
+  thead.querySelectorAll('th').forEach(th=>{
+    th.onclick = ()=>{
+      const k = th.dataset.k;
+      state.sortDir = (state.sortCol===k) ? -state.sortDir : 1;
+      state.sortCol = k;
+      renderTable();
+    };
+    if(th.dataset.k===state.sortCol) th.classList.add('sorted');
+  });
+
+  let rows = filteredRows();
+  if(state.sortCol){
+    rows = rows.slice().sort((a,b)=>{
+      let av, bv;
+      if(state.sortCol==='year'){ av=a.year; bv=b.year; }
+      else if(state.sortCol==='cohort'){ av=a.cohort; bv=b.cohort; }
+      else if(state.sortCol==='n'){ av=a.n; bv=b.n; }
+      else { av=a.vals[state.sortCol]; bv=b.vals[state.sortCol]; }
+      if(av===undefined||av===null) return 1;
+      if(bv===undefined||bv===null) return -1;
+      return av>bv ? state.sortDir : av<bv ? -state.sortDir : 0;
+    });
+  } else {
+    rows = rows.slice().sort((a,b)=> (a.year+a.cohort).localeCompare(b.year+b.cohort));
+  }
+
+  let html = '';
+  rows.forEach(r=>{
+    html += `<tr><td>${r.year}</td><td>${r.cohort}</td><td style="font-family:var(--mono)">${r.n}</td>`;
+    cols.forEach(c=>{
+      const v = r.vals[catKey(c.typ,c.cat)];
+      html += `<td class="${c.typ==='Knowledge'?'cell-k':'cell-s'}">${v!==undefined?v.toFixed(2):'—'}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  if(document.getElementById('showBenchmarks').checked && (state.type==='Knowledge'||state.type==='Both')){
+    DATA.benchmarks.filter(b=>b.type==='Knowledge').forEach(b=>{
+      html += `<tr class="benchmark-row"><td>${b.label}</td><td>—</td><td>—</td>`;
+      cats.forEach(cat=>{
+        if(!DATA.knowCats.includes(cat)) { if(state.type==='Both') html+='<td>—</td>'; return; }
+        const idx = DATA.knowCats.indexOf(cat);
+        const v = b.vals[idx];
+        html += `<td class="cell-k">${typeof v==='number'?v.toFixed(2):'—'}</td>`;
+      });
+      html += '</tr>';
+    });
+  }
+
+  tbody.innerHTML = html || '<tr><td colspan="99" class="empty-note">No rows match the current filters.</td></tr>';
+}
+
+// ---------------- item drilldown ----------------
+function populateDrilldown(){
+  const catSel = document.getElementById('drillCategory');
+  const cats = currentTypeCats();
+  const uniq = [...new Set(cats)];
+  const prevCat = catSel.value;
+  catSel.innerHTML = uniq.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(uniq.includes(prevCat)) catSel.value = prevCat;
+
+  const yearSel = document.getElementById('drillYear');
+  const years = DATA.years.filter(y=>state.years.has(y));
+  const prevYear = yearSel.value;
+  yearSel.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.includes(prevYear)) yearSel.value = prevYear; else yearSel.value = years[years.length-1];
+
+  const cohSel = document.getElementById('drillCohort');
+  const cohorts = Array.from(state.cohorts);
+  const prevCoh = cohSel.value;
+  cohSel.innerHTML = cohorts.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(cohorts.includes(prevCoh)) cohSel.value = prevCoh;
+}
+['drillCategory','drillYear','drillCohort'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', renderItemBars);
+});
+
+function renderItemBars(){
+  const cat = document.getElementById('drillCategory').value;
+  const year = document.getElementById('drillYear').value;
+  const cohort = document.getElementById('drillCohort').value;
+  const isKnow = DATA.knowCats.includes(cat) && (state.type!=='Skill');
+  const typ = isKnow ? 'Knowledge' : 'Skill';
+  const color = isKnow ? getComputedStyle(document.documentElement).getPropertyValue('--knowledge') : getComputedStyle(document.documentElement).getPropertyValue('--skill');
+
+  const items = Object.entries(DATA.itemMeta).filter(([code,m])=>m.category===cat && m.type===typ);
+  const container = document.getElementById('itemBars');
+  if(!items.length){ container.innerHTML = '<div class="empty-note">No items in this category.</div>'; return; }
+
+  let html = '';
+  items.sort((a,b)=> (a[1].text||'').localeCompare(b[1].text||''));
+  items.forEach(([code,meta])=>{
+    const key = year+'||'+cohort+'||'+code;
+    const val = DATA.itemMeans[key];
+    const pct = val ? (val/5*100) : 0;
+    const proposed = meta.status==='Proposed' ? '<span class="proposed-tag">proposed</span>' : '';
+    html += `<div class="item-bar-row">
+      <div class="item-bar-label">${meta.text}${proposed}</div>
+      <div class="item-bar-track"><div class="item-bar-fill" style="width:${pct}%; background:${color}"></div></div>
+      <div class="item-bar-val">${val!==undefined ? val.toFixed(2) : '—'}</div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ---------------- report ----------------
+function renderReport(){
+  const rows = filteredRows();
+  const years = Array.from(state.years).sort();
+  const cohorts = Array.from(state.cohorts);
+  const cats = Array.from(state.cats);
+  const totalN = rows.reduce((a,r)=>a+(r.n||0),0);
+
+  let lines = [];
+  lines.push(`PURDUE LA OUTCOMES & ASSESSMENT — FILTERED REPORT`);
+  lines.push(`Generated ${new Date().toISOString().slice(0,10)}`);
+  lines.push('');
+  lines.push(`Years:     ${years.length ? years.join(', ') : '(none selected)'}`);
+  lines.push(`Cohorts:   ${cohorts.length ? cohorts.join(', ') : '(none selected)'}`);
+  lines.push(`View:      ${state.type}`);
+  lines.push(`Categories: ${cats.length ? cats.join('; ') : '(none selected)'}`);
+  lines.push(`Respondents in selection: ${totalN} (sum across the ${rows.length} year-by-cohort rows shown)`);
+  lines.push('');
+
+  cats.forEach(cat=>{
+    ['Knowledge','Skill'].forEach(typ=>{
+      if(state.type!=='Both' && state.type!==typ) return;
+      if(typ==='Knowledge' && !DATA.knowCats.includes(cat)) return;
+      if(typ==='Skill' && !DATA.skillCats.includes(cat)) return;
+      const key = catKey(typ,cat);
+      const vals = rows.map(r=>r.vals[key]).filter(v=>v!==undefined);
+      if(!vals.length) return;
+      const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+      const min = Math.min(...vals), max = Math.max(...vals);
+      lines.push(`${cat} (${typ}): mean ${mean.toFixed(2)}  [range ${min.toFixed(2)}–${max.toFixed(2)} across selection]`);
+    });
+  });
+
+  document.getElementById('reportText').textContent = lines.join('\n');
+}
+
+document.getElementById('copyReport').onclick = ()=>{
+  navigator.clipboard.writeText(document.getElementById('reportText').textContent);
+  const btn = document.getElementById('copyReport');
+  const orig = btn.textContent; btn.textContent = 'Copied';
+  setTimeout(()=>btn.textContent=orig, 1200);
+};
+
+document.getElementById('downloadCsv').onclick = ()=>{
+  const table = document.getElementById('dataTable');
+  const rows = [...table.querySelectorAll('tr')];
+  const csv = rows.map(row => [...row.children].map(cell=>{
+    let t = cell.textContent.replace(/"/g,'""');
+    return `"${t}"`;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'oa_survey_filtered.csv';
+  a.click();
+};
+
+// ---------------- master render ----------------
+function updateHeaderStats(){
+  document.getElementById('statYears').textContent = DATA.years.length;
+  document.getElementById('statCohorts').textContent = DATA.cohorts.length;
+  const rows = filteredRows();
+  document.getElementById('statN').textContent = rows.reduce((a,r)=>a+(r.n||0),0);
+}
+
+let starInitialized = false;
+function render(){
+  buildChips('yearChips', DATA.years, state.years);
+  buildChips('cohortChips', DATA.cohorts, state.cohorts);
+  buildCatChips();
+  populateFocusYear();
+  renderTrendChart();
+  renderBarChart();
+  if(!starInitialized){ initStarControls(); starInitialized = true; }
+  renderStarCharts();
+  renderTable();
+  populateDrilldown();
+  renderItemBars();
+  renderReport();
+  updateHeaderStats();
+}
+
+fetch('data.json?v=' + Date.now())
+  .then(r => {
+    if(!r.ok) throw new Error('data.json returned ' + r.status);
+    return r.json();
+  })
+  .then(json => { DATA = json; initState(); render(); })
+  .catch(err => {
+    document.querySelector('main').innerHTML =
+      '<div class="panel"><h2>Could not load data.json</h2><p class="sub">' +
+      'This page expects data.json to sit next to it on the same host. ' +
+      String(err) + '</p></div>';
+    console.error(err);
+  });
+</script>
+</body>
+</html>
