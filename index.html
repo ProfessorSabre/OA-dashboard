@@ -183,6 +183,16 @@
   }
   .item-bar-wrap{max-height:520px; overflow-y:auto;}
 
+  /* ---------- item trend explorer ---------- */
+  .explorer-controls{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px;}
+  .explorer-row{display:grid; grid-template-columns:1.5fr 1fr; gap:24px;}
+  .explorer-box{position:relative; height:320px;}
+  .n-note{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft); margin-top:6px;}
+  .tie-note{color:var(--gold); font-weight:600;}
+  .dist-picker{display:flex; gap:14px; align-items:center; margin-bottom:10px; flex-wrap:wrap;}
+  .mode-readout{font-family:var(--mono); font-size:13px; margin-top:10px; padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:var(--radius);}
+  @media (max-width:980px){ .explorer-row{grid-template-columns:1fr;} }
+
   /* ---------- star charts ---------- */
   .star-controls{display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;}
   .star-mode-toggle{display:flex; border:1px solid var(--line); border-radius:14px; overflow:hidden;}
@@ -230,7 +240,7 @@
 <header>
   <div class="eyebrow">Purdue Landscape Architecture · Outcomes &amp; Assessment</div>
   <h1>Curriculum Perception Survey Dashboard</h1>
-  <p>Grand means by category, year, and cohort. Select years and cohorts below to filter charts, tables, and reports.</p>
+  <p>Grand means by category, year, and cohort, drawn directly from Category Means in Master OA Survey v2. Select years and cohorts below to filter every chart, table, and report on this page.</p>
   <div class="header-stats">
     <div class="header-stat"><div class="num" id="statYears">–</div><div class="lbl">Survey years</div></div>
     <div class="header-stat"><div class="num" id="statCohorts">–</div><div class="lbl">Cohorts tracked</div></div>
@@ -275,6 +285,38 @@
           <select id="focusYear"></select>
         </div>
         <canvas id="barChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Item trend explorer</h2>
+    <p class="sub">Pick one item and watch it move by itself, across years, split by cohort. The line is the mean, since that's what's comparable to the rest of this page. Point at any year to see that point's full response distribution, mean alone can't show you a ceiling effect or a split cohort; the distribution can.</p>
+    <div class="explorer-controls">
+      <div>
+        <span class="fg-label">Type</span><br>
+        <div class="toggle-group" id="expTypeToggle">
+          <button data-type="Knowledge" class="active">Knowledge</button>
+          <button data-type="Skill">Skill</button>
+        </div>
+      </div>
+      <div><span class="fg-label">Category</span><br><select id="expCategory"></select></div>
+      <div><span class="fg-label">Item</span><br><select id="expItem"></select></div>
+      <div class="filter-group">
+        <div class="fg-label">Cohorts shown <button class="miniBtn" id="expCohortsAll">all</button><button class="miniBtn" id="expCohortsNone">none</button></div>
+        <div class="chiprow" id="expCohortChips"></div>
+      </div>
+    </div>
+    <div class="explorer-row">
+      <div class="explorer-box"><canvas id="expTrendChart"></canvas></div>
+      <div>
+        <div class="dist-picker">
+          <span class="fg-label" style="margin:0;">Distribution for</span>
+          <select id="distYear"></select>
+          <select id="distCohort"></select>
+        </div>
+        <div class="explorer-box" style="height:220px;"><canvas id="expDistChart"></canvas></div>
+        <div class="mode-readout" id="modeReadout"></div>
       </div>
     </div>
   </div>
@@ -361,6 +403,7 @@ function initState(){
   state.cats = new Set(DATA.knowCats);
 }
 
+const CLASS_COHORTS = ['Freshman','Sophomore','Junior','Co-op','Senior'];
 const COHORT_COLORS = {
   'Freshman':'#35604A','Sophomore':'#4C7A5E','Junior':'#6C9678','Co-op':'#8A5A34',
   'Senior':'#A97A50','Professional practice 1-3 years':'#C99A3E','Professional practice 3-8 years':'#B98330',
@@ -535,8 +578,156 @@ function populateFocusYear(){
 }
 document.getElementById('focusYear').addEventListener('change', renderBarChart);
 
+// ---------------- item trend explorer ----------------
+const expState = { cohorts: new Set(CLASS_COHORTS), type: 'Knowledge' };
+
+function populateExpCategories(){
+  const catSel = document.getElementById('expCategory');
+  const prev = catSel.value;
+  const cats = expState.type==='Knowledge' ? DATA.knowCats : DATA.skillCats;
+  catSel.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  catSel.value = cats.includes(prev) ? prev : cats[0];
+}
+
+function initExplorer(){
+  document.querySelectorAll('#expTypeToggle button').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('#expTypeToggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      expState.type = btn.dataset.type;
+      populateExpCategories();
+      populateExpItems();
+      renderExplorer();
+    };
+  });
+
+  populateExpCategories();
+  const catSel = document.getElementById('expCategory');
+
+  const yearSel = document.getElementById('distYear');
+  yearSel.innerHTML = DATA.years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  yearSel.value = DATA.years[DATA.years.length-1];
+
+  const cohSel = document.getElementById('distCohort');
+  cohSel.innerHTML = CLASS_COHORTS.concat(['Faculty']).map(c=>`<option value="${c}">${c}</option>`).join('');
+  cohSel.value = 'Senior';
+
+  buildChips('expCohortChips', CLASS_COHORTS.concat(['Faculty']), expState.cohorts);
+  document.querySelectorAll('#expCohortChips .chip').forEach((chip,i)=>{
+    const opts = CLASS_COHORTS.concat(['Faculty']);
+    chip.onclick = ()=>{
+      const item = opts[i];
+      if(expState.cohorts.has(item)) expState.cohorts.delete(item); else expState.cohorts.add(item);
+      renderExplorer();
+    };
+  });
+  document.getElementById('expCohortsAll').onclick = ()=>{ expState.cohorts = new Set(CLASS_COHORTS.concat(['Faculty'])); renderExplorer(); };
+  document.getElementById('expCohortsNone').onclick = ()=>{ expState.cohorts.clear(); renderExplorer(); };
+
+  catSel.addEventListener('change', ()=>{ populateExpItems(); renderExplorer(); });
+  document.getElementById('expItem').addEventListener('change', renderExplorer);
+  yearSel.addEventListener('change', renderExplorer);
+  cohSel.addEventListener('change', renderExplorer);
+
+  populateExpItems();
+}
+
+function populateExpItems(){
+  const cat = document.getElementById('expCategory').value;
+  const typ = expState.type;
+  const items = Object.entries(DATA.itemMeta)
+    .filter(([code,m])=>m.category===cat && m.type===typ)
+    .sort((a,b)=>(a[1].text||'').localeCompare(b[1].text||''));
+  const sel = document.getElementById('expItem');
+  sel.innerHTML = items.map(([code,m])=>`<option value="${code}">${m.text.length>70?m.text.slice(0,68)+'…':m.text}</option>`).join('');
+}
+
+function distFor(year, cohort, code){
+  const key = year+'||'+cohort+'||'+code;
+  return DATA.itemDist ? DATA.itemDist[key] : null;
+}
+function statsFromDist(d){
+  if(!d) return null;
+  const n = d.reduce((a,b)=>a+b,0);
+  if(!n) return {n:0, mean:null, modes:[]};
+  const mean = d.reduce((a,c,i)=>a+(i+1)*c,0)/n;
+  const maxCount = Math.max(...d);
+  const modes = d.map((c,i)=>c===maxCount?i+1:null).filter(v=>v!==null);
+  return {n, mean, modes, maxCount};
+}
+
+let expTrendChart, expDistChart;
+function renderExplorer(){
+  const code = document.getElementById('expItem').value;
+  if(!code) return;
+  const cohorts = CLASS_COHORTS.concat(['Faculty']).filter(c=>expState.cohorts.has(c));
+
+  // trend chart: mean per year, one line per selected cohort
+  const datasets = cohorts.map(coh=>{
+    const data = DATA.years.map(y=>{
+      const s = statsFromDist(distFor(y, coh, code));
+      return s && s.n ? s.mean : null;
+    });
+    return {
+      label: coh, data,
+      borderColor: COHORT_COLORS[coh] || '#888', backgroundColor:'transparent',
+      borderDash: coh==='Faculty' ? [6,4] : [],
+      spanGaps:true, tension:0.2, pointRadius:3,
+    };
+  });
+  if(expTrendChart) expTrendChart.destroy();
+  expTrendChart = new Chart(document.getElementById('expTrendChart'), {
+    type:'line',
+    data:{ labels:DATA.years, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{min:0,max:5, ticks:{font:{family:'IBM Plex Mono',size:10}}}, x:{ticks:{font:{family:'IBM Plex Mono',size:9}}} },
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:10}}},
+        tooltip:{ callbacks:{ afterLabel:(ctx)=>{
+          const coh = ctx.dataset.label, y = ctx.label;
+          const s = statsFromDist(distFor(y, coh, code));
+          return s && s.n ? `n = ${s.n}` : 'n = 0';
+        }}}
+      }
+    }
+  });
+
+  populateExpItems.lastCode = code; // no-op, keeps lints quiet
+  renderDistChart();
+}
+
+function renderDistChart(){
+  const code = document.getElementById('expItem').value;
+  const year = document.getElementById('distYear').value;
+  const cohort = document.getElementById('distCohort').value;
+  const d = distFor(year, cohort, code);
+  const s = statsFromDist(d);
+  const labels = ['1','2','3','4','5'];
+  if(expDistChart) expDistChart.destroy();
+  expDistChart = new Chart(document.getElementById('expDistChart'), {
+    type:'bar',
+    data:{ labels, datasets:[{ data: d || [0,0,0,0,0], backgroundColor: expState.type==='Knowledge' ? '#35604A' : '#8A5A34' }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ ticks:{precision:0, font:{family:'IBM Plex Mono',size:10}} }, x:{ticks:{font:{family:'IBM Plex Mono',size:10}}} },
+      plugins:{ legend:{display:false} }
+    }
+  });
+  const readout = document.getElementById('modeReadout');
+  if(!s || !s.n){
+    readout.innerHTML = `<b>n = 0</b> — no responses for this item, year, and cohort.`;
+  } else {
+    const modeText = s.modes.length>1
+      ? `<span class="tie-note">tied between ${s.modes.join(' and ')}</span>`
+      : s.modes[0];
+    readout.innerHTML = `n = ${s.n} &nbsp; mean = ${s.mean.toFixed(2)} &nbsp; mode = ${modeText}` +
+      (s.n < 6 ? ` <span class="n-note">— small sample, read with caution</span>` : '');
+  }
+}
+document.getElementById('distYear').addEventListener('change', renderDistChart);
+document.getElementById('distCohort').addEventListener('change', renderDistChart);
+
 // ---------------- star charts ----------------
-const CLASS_COHORTS = ['Freshman','Sophomore','Junior','Co-op','Senior'];
 const COHORT_RAMP = { 'Freshman':'#A9BEDC', 'Sophomore':'#6E90C4', 'Junior':'#2C4E7C', 'Co-op':'#132038', 'Senior':'#E2872B' };
 const YEAR_RAMP_BASE = [222,236,246]; // light blue -> interpolated darker per index
 function yearColor(i, n){
@@ -877,7 +1068,7 @@ function updateHeaderStats(){
   document.getElementById('statN').textContent = rows.reduce((a,r)=>a+(r.n||0),0);
 }
 
-let starInitialized = false;
+let starInitialized = false, explorerInitialized = false;
 function render(){
   buildChips('yearChips', DATA.years, state.years);
   buildChips('cohortChips', DATA.cohorts, state.cohorts);
@@ -885,6 +1076,8 @@ function render(){
   populateFocusYear();
   renderTrendChart();
   renderBarChart();
+  if(!explorerInitialized){ initExplorer(); explorerInitialized = true; }
+  renderExplorer();
   if(!starInitialized){ initStarControls(); starInitialized = true; }
   renderStarCharts();
   renderTable();
@@ -895,16 +1088,12 @@ function render(){
 }
 
 fetch('data.json?v=' + Date.now())
-  .then(r => {
-    if(!r.ok) throw new Error('data.json returned ' + r.status);
-    return r.json();
-  })
+  .then(r => { if(!r.ok) throw new Error('data.json returned ' + r.status); return r.json(); })
   .then(json => { DATA = json; initState(); render(); })
   .catch(err => {
     document.querySelector('main').innerHTML =
       '<div class="panel"><h2>Could not load data.json</h2><p class="sub">' +
-      'This page expects data.json to sit next to it on the same host. ' +
-      String(err) + '</p></div>';
+      'This page expects data.json to sit next to it on the same host. ' + String(err) + '</p></div>';
     console.error(err);
   });
 </script>
